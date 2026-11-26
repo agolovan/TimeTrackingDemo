@@ -1,0 +1,6 @@
+@TimeTrackingDemo_HostAddress = http://localhost:5230
+
+GET {{TimeTrackingDemo_HostAddress}}/departments
+Accept: application/json
+
+###
