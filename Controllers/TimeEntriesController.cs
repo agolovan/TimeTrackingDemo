@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
 
 using TimeTrackingDemo.Data;
+using TimeTrackingDemo.Validation;
 
 namespace TimeTrackingDemo.Controllers;
 
@@ -12,7 +13,8 @@ namespace TimeTrackingDemo.Controllers;
 public class TimeEntriesController(
     TimeTrackingDemoContext db,
     IDistributedCache cache,
-    IConfiguration configuration) : ControllerBase
+    IConfiguration configuration,
+    TimeEntryValidator validator) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetTimeEntries(CancellationToken cancellationToken)
@@ -28,19 +30,39 @@ public class TimeEntriesController(
             return Content(cachedJson, "application/json");
         }
 
-        var entries = await db.TimeEntries
+        var timeEntries = await db.TimeEntries
+            .AsNoTracking()
+            .Include(t => t.Employee)
+                .ThenInclude(e => e.Department)
+            .Include(t => t.Project)
             .OrderBy(t => t.WorkDate)
-            .Select(t => new
-            {
-                t.Employee.FirstName,
-                t.Employee.LastName,
-                Department = t.Employee.Department.Name,
-                Location = t.Employee.Department.Location,
-                Project = t.Project.Name,
-                t.WorkDate,
-                t.HoursWorked
-            })
             .ToListAsync(cancellationToken);
+
+        foreach (var timeEntry in timeEntries)
+        {
+            var validationErrors = validator.Validate(timeEntry);
+            if (validationErrors.Count > 0)
+            {
+                return BadRequest(new
+                {
+                    message = $"Time entry id = {timeEntry.Id} failed validation.",
+                    errors = validationErrors
+                        .Select(error => error.ErrorMessage)
+                        .ToArray()
+                });
+            }
+        }
+
+        var entries = timeEntries.Select(t => new
+        {
+            t.Employee.FirstName,
+            t.Employee.LastName,
+            Department = t.Employee.Department.Name,
+            Location = t.Employee.Department.Location,
+            Project = t.Project.Name,
+            t.WorkDate,
+            t.HoursWorked
+        });
 
         var json = JsonSerializer.Serialize(entries, JsonSerializerOptions.Web);
 

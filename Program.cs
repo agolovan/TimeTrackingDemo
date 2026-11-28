@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TimeTrackingDemo.Data;
+using TimeTrackingDemo.Validation;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +31,9 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.Configuration = redisConnectionString;
     options.InstanceName = redisInstanceName;
 });
+
+// Time Entry Validator
+builder.Services.AddTransient<TimeEntryValidator>();
 
 var app = builder.Build();
 
